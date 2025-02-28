@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>FTP Клиент</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"], input[type="password"], input[type="number"] { width: 100%; padding: 8px; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>FTP Клиент</h1>
+    <form action="/htbin/main.perl" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Хост:</label>
+            <input type="text" name="host" value="localhost" required>
+        </div>
+
+        <div class="form-group">
+            <label>Пользователь:</label>
+            <input type="text" name="user" value="username" required>
+        </div>
+
+        <div class="form-group">
+            <label>Пароль:</label>
+            <input type="password" name="pass" value="password" required>
+        </div>
+
+        <div class="form-group">
+            <label>Порт:</label>
+            <input type="number" name="port" value="21">
+        </div>
+
+        <div class="form-group">
+            <label>Команда:</label>
+            <select name="command" id="command-select">
+                <option value="list">Список файлов</option>
+                <option value="download">Скачать файл</option>
+                <option value="upload">Загрузить файл</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="filename-group">
+            <label>Имя файла:</label>
+            <input type="text" name="filename">
+        </div>
+
+        <div class="form-group" id="file-upload-group">
+            <label>Файл для загрузки:</label>
+            <input type="file" name="file">
+        </div>
+
+        <input type="submit" value="Выполнить">
+    </form>
+
+    <script>
+        // Динамическое управление полями формы
+        const commandSelect = document.getElementById('command-select');
+        const filenameGroup = document.getElementById('filename-group');
+        const fileUploadGroup = document.getElementById('file-upload-group');
+
+        function updateFields() {
+            const command = commandSelect.value;
+            filenameGroup.style.display = (command !== 'list') ? 'block' : 'none';
+            fileUploadGroup.style.display = (command === 'upload') ? 'block' : 'none';
+        }
+
+        commandSelect.addEventListener('change', updateFields);
+        updateFields(); // Инициализация при загрузке
+    </script>
+</body>
+</html>
