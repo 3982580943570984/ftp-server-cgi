@@ -2,35 +2,41 @@
 
 use strict;
 use warnings;
-
-use CGI qw(:standard);
-use CGI::Carp qw(fatalsToBrowser);
+use CGI;
+use CGI::Carp;
+use JSON::PP;
 use Net::FTP;
 
-my $cgi = new CGI;
+my $cgi = CGI->new;
 
-# Только обработка POST-запросов
-unless ($cgi->request_method() eq 'POST') {
-    print $cgi->redirect('../index.html');
-    exit;
+# Обработка входных данных
+my $input = { map { $_ => scalar $cgi->param($_) } $cgi->param };
+
+if ($cgi->request_method eq 'POST' && $cgi->content_type =~ /application\/json/) {
+    my $json_text = $cgi->param('POSTDATA');
+    unless (defined $json_text && $json_text ne '') {
+        local $/;  # Читаем весь поток
+        $json_text = <STDIN>;
+    }
+    $input = decode_json($json_text);
 }
 
-# Получение параметров
-my ($host, $user, $pass, $port, $command, $filename) = (
-    $cgi->param('host'),
-    $cgi->param('user'),
-    $cgi->param('pass'),
-    $cgi->param('port') || 2121,
-    $cgi->param('command'),
-    $cgi->param('filename')
+# Извлечение параметров
+my ($host, $user, $pass, $port, $command, $filename, $current_dir) = (
+    $input->{host},
+    $input->{user},
+    $input->{pass},
+    $input->{port} || 21,
+    $input->{command} || 'list',
+    $input->{filename},
+    $input->{current_dir} || '/'
 );
 
-# Валидация параметров
-unless ($host && $user && $pass && $command) {
-    show_error("Не заполнены обязательные поля");
+# Валидация
+unless ($host && $user && $pass) {
+    send_json({ error => "Не заполнены обязательные поля" }, 400);
 }
 
-# Обработка команд
 eval {
     my $ftp = Net::FTP->new(
         Host    => $host,
@@ -42,13 +48,39 @@ eval {
     $ftp->login($user, $pass) or die "Ошибка авторизации: " . $ftp->message;
 
     if ($command eq 'list') {
-        show_file_list($ftp->ls());
+        $ftp->cwd($current_dir) if $current_dir ne '/';
+        $current_dir = $ftp->pwd;
+
+        my @files;
+        foreach my $line ($ftp->dir) {
+            my @parts = split(/\s+/, $line, 9);
+            my $file = {
+                name => $parts[8],
+                is_dir => ($line =~ /^d/) ? \1 : \0
+            };
+            push @files, $file;
+        }
+
+        send_json({
+            current_dir => $current_dir,
+            files => \@files
+        });
     }
     elsif ($command eq 'download') {
-        download_file($ftp, $filename);
+        $ftp->cwd($current_dir);
+        print $cgi->header(
+            -type        => 'application/octet-stream',
+            -attachment  => $filename,
+            -charset     => 'binary'
+        );
+        $ftp->get($filename, \*STDOUT) or die $ftp->message;
+        exit;
     }
     elsif ($command eq 'upload') {
-        upload_file($ftp, $cgi->upload('file'), $filename);
+        my $upload = $cgi->upload('file');
+        $ftp->cwd($current_dir);
+        $ftp->put($upload, $filename) or die $ftp->message;
+        send_json({ success => 1 });
     }
     else {
         die "Неизвестная команда: $command";
@@ -58,63 +90,16 @@ eval {
 };
 
 if ($@) {
-    show_error($@);
+    send_json({ error => $@ }, 500);
 }
 
-# ========== Субрутины ==========
-
-sub download_file {
-    my ($ftp, $filename) = @_;
-
-    unless ($filename) {
-        show_error("Укажите имя файла для скачивания");
-    }
-
+sub send_json {
+    my ($data, $status) = @_;
     print $cgi->header(
-        -type        => 'application/octet-stream',
-        -attachment  => $filename,
-        -charset     => 'binary'
+        -type => 'application/json',
+        -charset => 'UTF-8',
+        -status => $status || 200
     );
-
-    binmode(STDOUT);
-    $ftp->get($filename, \*STDOUT) or die $ftp->message;
+    print encode_json($data);
     exit;
-}
-
-sub upload_file {
-    my ($ftp, $upload, $filename) = @_;
-
-    unless ($filename && $upload) {
-        show_error("Укажите файл и имя для загрузки");
-    }
-
-    $ftp->put($upload, $filename) or die $ftp->message;
-    show_success("Файл успешно загружен");
-}
-
-sub show_file_list {
-    my @files = @_;
-    print $cgi->header('text/html');
-    print "<h3>Содержимое каталога:</h3><ul>";
-    print "<li>$_</li>" for @files;
-    print "</ul>";
-}
-
-sub show_success {
-    my ($message) = @_;
-    print $cgi->header('text/html');
-    print "<div class='success'>$message</div>";
-    print_link_back();
-}
-
-sub show_error {
-    my ($error) = @_;
-    print $cgi->header('text/html');
-    print "<div class='error'>Ошибка: $error</div>";
-    print_link_back();
-    exit;
-}
-
-sub print_link_back {
-    print "<p><a href='/index.html'>Вернуться к форме</a></p>";
 }
