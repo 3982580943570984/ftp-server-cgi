@@ -87,12 +87,10 @@ sub list(
 ) {
   Logger::log("Листинг для директории '%s'", [$directory]);
 
-  print Printer::list($directory, $ftp->listing);
-
-  # $self->send({
-  #   directory => $ftp->directory($directory),
-  #   files => $ftp->listing
-  # });
+  $self->send({
+    directory => $ftp->directory($directory),
+    files => $ftp->listing
+  });
 };
 
 sub download(
