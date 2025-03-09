@@ -106,10 +106,10 @@ sub put($self, $directory, $filename, $contents) {
     or die "Не удалось загрузить файл в активную директорию: " . $self->{inner}->message;
 }
 
-sub rename($self, $directory, $filename) {
+sub rename($self, $directory, $filename, $name) {
   $self->directory($directory);
 
-  $self->{inner}->rename($filename)
+  $self->{inner}->rename($filename, $name)
     or die "Не удалось переименовать файл '$filename' из '$directory': " . $self->{inner}->message;
 }
 
@@ -134,7 +134,6 @@ sub remove_directory($self, $directory, $recurse = 0) {
   Logger::log("Удалена директория '%s'", [$directory]);
 }
 
-
 sub cwd($self, $directory) {
   $self->{inner}->cwd($directory)
     or die "Не удалось изменить активную директорию: " . $self->{inner}->message;
@@ -148,8 +147,12 @@ sub pwd($self) {
 }
 
 sub dir($self, $directory = $self->{directory}) {
-  my @lines = $self->{inner}->dir($directory)
-    or die "Не удалось получить листинг активной директории: " . $self->{inner}->message;
+  my @lines = $self->{inner}->dir($directory);
+
+  if (!@lines) {
+    Logger::log("Директория '%s' пуста.", [$directory]);
+    return ();
+  }
 
   return @lines;
 }

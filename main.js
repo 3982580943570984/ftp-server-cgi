@@ -1,3 +1,8 @@
+/***********************************************************
+ * Global State
+ ***********************************************************/
+
+// Holds basic connection and directory info
 let state = {
   host: "127.0.0.1",
   port: 21,
@@ -7,52 +12,225 @@ let state = {
   filename: "",
 };
 
-const list = async (directory) => {
+// Holds the array of file entries retrieved from the server.
+let currentListing = [];
+
+// Tracks the current sorting column and direction
+let sortState = {
+  column: null, // e.g. "name", "type", "size", ...
+  ascending: true, // true = ascending, false = descending
+};
+
+/***********************************************************
+ * On page load, load the default listing.
+ ***********************************************************/
+window.onload = function () {
+  // Add a click listener to each <th> so we can sort by that column
+  document.querySelectorAll("thead th[data-column]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const columnKey = th.getAttribute("data-column");
+      sortBy(columnKey);
+    });
+  });
+
+  list(state.directory);
+};
+
+/***********************************************************
+ * Fetch and store the file listing from the server
+ ***********************************************************/
+async function list(directory) {
   try {
     const response = await fetch("/htbin/main.perl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...state, command: "list", directory: directory }),
+      body: JSON.stringify({
+        ...state,
+        command: "list",
+        directory: directory,
+      }),
     });
 
     const data = await response.json();
-
-    if (!response.ok) throw await response.json();
+    if (!response.ok) throw data; // if server returned error
 
     state.directory = data.directory;
     document.getElementById("directory").textContent = state.directory;
 
-    const listing = document.getElementById("listing");
-    listing.replaceChildren();
+    // Convert { filename: info } object into an array of items
+    currentListing = Object.entries(data.files).map(([name, info]) => {
+      return {
+        name: name,
+        type: info.type,
+        permissions: info.permissions,
+        owner: info.owner,
+        group: info.group,
+        size: info.size,
+        date: info.date,
+        symlink_target: info.symlink_target,
+      };
+    });
 
-    listing.insertAdjacentHTML(
-      "beforeend",
-      create_file_row(
-        "..",
-        {
-          type: "directory",
-          permissions: "",
-          owner: "",
-          group: "",
-          size: "",
-          date: "",
-        },
-        true,
-        ".."
-      )
-    );
-
-    Object.entries(data.files)
-      .map(([name, info]) => create_file_row(name, info))
-      .forEach((row) => listing.insertAdjacentHTML("beforeend", row));
-
-    listing.insertAdjacentHTML("beforeend", create_upload_row());
+    // After updating currentListing, render it
+    renderListing();
   } catch (error) {
-    show_error(error.error);
+    show_error(error.error || String(error));
   }
-};
+}
 
-const download = async (filename) => {
+/***********************************************************
+ * Render the currentListing array into <tbody>
+ ***********************************************************/
+function renderListing() {
+  const listingBody = document.getElementById("listing");
+  listingBody.innerHTML = "";
+
+  // 1) Insert the special “..” row at the top
+  listingBody.insertAdjacentHTML(
+    "beforeend",
+    create_file_row(
+      "..",
+      {
+        type: "directory",
+        permissions: "",
+        owner: "",
+        group: "",
+        size: "",
+        date: "",
+      },
+      true,
+      ".."
+    )
+  );
+
+  // 2) For each file in currentListing, create a row
+  currentListing.forEach((file) => {
+    listingBody.insertAdjacentHTML(
+      "beforeend",
+      create_file_row(file.name, file)
+    );
+  });
+
+  // 3) Insert the special “upload file” row
+  listingBody.insertAdjacentHTML("beforeend", create_upload_row());
+
+  // 4) Insert a row for “Создать директорию”
+  listingBody.insertAdjacentHTML("beforeend", create_mkdir_row());
+
+  // Show a small arrow indicator on the sorted column
+  updateSortIndicator();
+}
+
+/***********************************************************
+ * Build one <tr> for a file/directory
+ ***********************************************************/
+function create_file_row(name, info, isGoUp = false, dirName = "") {
+  const isDir = info.type === "directory";
+  const isFile = info.type === "file";
+  const isSymlink = info.type === "symlink";
+  const target =
+    isSymlink && info.symlink_target ? ` -> ${info.symlink_target}` : "";
+
+  // Display name
+  const displayName = isGoUp ? ".." : `${name}${isDir ? "/" : ""}${target}`;
+
+  // If directory => row click navigates
+  const rowOnclick =
+    isGoUp || isDir ? `onclick="navigate('${dirName || name}')"` : "";
+
+  // Simple icons
+  const icon = isGoUp ? "" : isDir ? "📁" : "📄";
+  const finalNameCell = icon + " " + displayName;
+
+  // Base actions (empty by default)
+  let actionsHTML = "";
+
+  // For real items (not “..”), show rename & delete
+  if (!isGoUp) {
+    // Add Rename + Delete for files and directories
+    actionsHTML += `
+      <button class="rename-button"
+              onclick="renameItem('${name}', ${isDir}); event.stopPropagation();"
+              title="Переименовать">✏️</button>
+
+      <button class="delete-button"
+              onclick="deleteItem('${name}', ${isDir}); event.stopPropagation();"
+              title="Удалить">🗑</button>
+    `;
+  }
+
+  // If it’s a file, also show “download” & “view”
+  if (isFile) {
+    actionsHTML += `
+      <button class="download-button"
+              onclick="download('${name}'); event.stopPropagation();"
+              title="Скачать">📥</button>
+
+      <button class="view-button"
+              onclick="view('${name}'); event.stopPropagation();"
+              title="Просмотр">👁</button>
+    `;
+  }
+
+  // Build the table row
+  return `
+    <tr class="${isGoUp ? "go-up-row" : ""}" ${rowOnclick}>
+      <td class="name-col">${finalNameCell}</td>
+      <td class="type-col">${isGoUp ? "" : info.type}</td>
+      <td class="perm-col">${info.permissions || ""}</td>
+      <td class="owner-col">${info.owner || ""}</td>
+      <td class="group-col">${info.group || ""}</td>
+      <td class="size-col">${info.size || ""}</td>
+      <td class="date-col">${info.date || ""}</td>
+      <td class="actions-col">${actionsHTML}</td>
+    </tr>
+  `;
+}
+
+/***********************************************************
+ * Create the special “upload file” row
+ ***********************************************************/
+function create_upload_row() {
+  return `
+    <tr class="upload-item" onclick="trigger_upload()">
+      <td colspan="8">➕ Загрузить файл</td>
+    </tr>
+  `;
+}
+
+/***********************************************************
+ * Create a row for “make directory”
+ ***********************************************************/
+function create_mkdir_row() {
+  return `
+    <tr class="mkdir-item" onclick="makeDir()">
+      <td colspan="8">➕ Создать директорию</td>
+    </tr>
+  `;
+}
+
+/***********************************************************
+ * Ask user for a subdirectory or “..”
+ ***********************************************************/
+function navigate(directory) {
+  let newDirectory = state.directory;
+
+  if (directory === "..") {
+    const parts = newDirectory.replace(/\/+$/, "").split("/").slice(0, -1);
+    newDirectory = parts.length > 0 ? parts.join("/") + "/" : "/";
+  } else {
+    newDirectory = newDirectory.endsWith("/")
+      ? newDirectory + directory
+      : newDirectory + "/" + directory;
+  }
+
+  list(newDirectory);
+}
+
+/***********************************************************
+ * Download a file from the server
+ ***********************************************************/
+async function download(filename) {
   try {
     const response = await fetch("/htbin/main.perl", {
       method: "POST",
@@ -73,11 +251,73 @@ const download = async (filename) => {
     a.download = filename;
     a.click();
   } catch (error) {
-    show_error(error.error);
+    show_error(error.error || String(error));
   }
-};
+}
 
-const upload = async (file, filename) => {
+/***********************************************************
+ * View file contents (text)
+ ***********************************************************/
+async function view(filename) {
+  try {
+    const response = await fetch("/htbin/main.perl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...state,
+        command: "view",
+        filename,
+      }),
+    });
+
+    if (!response.ok) throw await response.json();
+
+    const data = await response.json();
+
+    const tab = window.open();
+    if (!tab) {
+      alert(
+        "Popup blocked! Разрешите всплывающие окна для просмотра содержимого."
+      );
+      return;
+    }
+    tab.document.write("<pre>" + data.contents + "</pre>");
+    tab.document.close();
+  } catch (error) {
+    show_error(error.error || String(error));
+  }
+}
+
+/***********************************************************
+ * Trigger file selection for upload
+ ***********************************************************/
+function trigger_upload() {
+  document.getElementById("hidden-upload-input").click();
+}
+
+/***********************************************************
+ * Listen for <input type="file"> changes, then upload
+ ***********************************************************/
+document
+  .getElementById("hidden-upload-input")
+  .addEventListener("change", async function () {
+    if (this.files.length === 0) return;
+
+    const file = this.files[0];
+    const filename = prompt("Введите имя файла для загрузки:", file.name);
+    if (!filename) {
+      this.value = "";
+      return;
+    }
+
+    await upload(file, filename);
+    this.value = "";
+  });
+
+/***********************************************************
+ * Upload a file
+ ***********************************************************/
+async function upload(file, filename) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("filename", filename);
@@ -99,135 +339,101 @@ const upload = async (file, filename) => {
     await list(state.directory);
     show_success("Файл успешно загружен");
   } catch (error) {
-    show_error(error.error);
+    show_error(error.error || String(error));
   }
-};
+}
 
-const view = async (filename) => {
+/***********************************************************
+ * Create a new directory
+ ***********************************************************/
+async function makeDir() {
+  const dirName = prompt("Введите имя новой директории:");
+  if (!dirName) return;
+
   try {
     const response = await fetch("/htbin/main.perl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...state, command: "view", filename }),
+      body: JSON.stringify({
+        ...state,
+        command: "make_directory",
+        directory: dirName, // the server should handle "newDirName"
+      }),
     });
 
     if (!response.ok) throw await response.json();
 
-    const data = await response.json();
-
-    // Open a new tab and write the content
-    const tab = window.open();
-
-    if (!tab) return alert("Popup blocked! Allow popups to view the content.");
-
-    tab.document.write("<pre>" + data.contents + "</pre>");
-    tab.document.close();
+    await list(state.directory);
+    show_success(`Директория '${dirName}' создана`);
   } catch (error) {
-    show_error(error.error);
+    show_error(error.error || String(error));
   }
-};
-
-window.onload = () => list(state.directory);
-
-// Навигация по директориям
-function navigate(directory) {
-  let new_directory = state.directory;
-
-  if (directory === "..") {
-    const parts = new_directory.replace(/\/+$/, "").split("/").slice(0, -1);
-    new_directory = parts.length > 0 ? parts.join("/") + "/" : "/";
-  } else {
-    new_directory = new_directory.endsWith("/")
-      ? new_directory + directory
-      : new_directory + "/" + directory;
-  }
-
-  list(new_directory);
 }
 
-// Helper to create a row for a file
-const create_file_row = (name, info, isGoUp = false, dirName = "") => {
-  const isDir = info.type === "directory";
-  const isFile = info.type === "file";
-  const isSymlink = info.type === "symlink";
-  const target =
-    isSymlink && info.symlink_target ? ` -> ${info.symlink_target}` : "";
-  const displayName = `${name}${isDir ? "/" : ""}${target}`;
+/***********************************************************
+ * Rename a file or directory
+ ***********************************************************/
+async function renameItem(oldName, isDir) {
+  const newName = prompt(`Введите новое имя для '${oldName}':`, oldName);
+  if (!newName || newName.trim() === "" || newName === oldName) return;
 
-  const rowOnclick =
-    isGoUp || isDir ? `onclick="navigate('${dirName || name}')"` : "";
+  try {
+    const response = await fetch("/htbin/main.perl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...state,
+        command: "rename",
+        filename: oldName,
+        name: newName, // the server should handle "newName"
+      }),
+    });
+    if (!response.ok) throw await response.json();
 
-  // Actions column: if it's a file, add a download button, or a “view” button, etc.
-  let actionsHTML = "";
-  if (isFile) {
-    actionsHTML = `
-            <button class="download-button"
-                    onclick="download('${name}'); event.stopPropagation();"
-                    title="Скачать">📥</button>
-            <button class="view-button"
-                    onclick="view('${name}'); event.stopPropagation();"
-                    title="Просмотр">👁</button>
-        `;
+    await list(state.directory);
+    show_success(`'${oldName}' переименован в '${newName}'`);
+  } catch (error) {
+    show_error(error.error || String(error));
   }
-
-  return `
-    <div class="file-row row" ${rowOnclick}>
-        <div class="file-col name-col">${displayName}</div>
-        <div class="file-col type-col">${info.type || ""}</div>
-        <div class="file-col perm-col">${info.permissions || ""}</div>
-        <div class="file-col owner-col">${info.owner || ""}</div>
-        <div class="file-col group-col">${info.group || ""}</div>
-        <div class="file-col size-col">${info.size || ""}</div>
-        <div class="file-col date-col">${info.date || ""}</div>
-        <div class="file-col actions-col">${actionsHTML}</div>
-    </div>
-    `;
-};
-
-// Helper to create the special “upload” row
-function create_upload_row() {
-  return `
-    <div class="file-row row upload-item" onclick="triggerUpload()">
-        <div class="file-col name-col">➕ Загрузить файл</div>
-        <div class="file-col type-col"></div>
-        <div class="file-col perm-col"></div>
-        <div class="file-col owner-col"></div>
-        <div class="file-col group-col"></div>
-        <div class="file-col size-col"></div>
-        <div class="file-col date-col"></div>
-        <div class="file-col actions-col"></div>
-    </div>
-    `;
 }
 
-// Открытие диалога для выбора файла
-function trigger_upload() {
-  document.getElementById("hidden-upload-input").click();
+/***********************************************************
+ * Delete a file or directory
+ ***********************************************************/
+async function deleteItem(name, isDir) {
+  const confirmed = confirm(`Удалить '${name}'?`);
+  if (!confirmed) return;
+
+  // If it's a directory, we call remove_directory; else we call delete
+  const cmd = isDir ? "remove_directory" : "delete";
+
+  try {
+    const body = {
+      ...state,
+      command: cmd,
+    };
+
+    isDir
+      ? (body.directory = state.directory + "/" + name)
+      : (body.filename = name);
+
+    const response = await fetch("/htbin/main.perl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw await response.json();
+
+    await list(state.directory);
+    show_success(`'${name}' удалён`);
+  } catch (error) {
+    show_error(error.error || String(error));
+  }
 }
 
-// Обработка выбора файла из скрытого input
-document
-  .getElementById("hidden-upload-input")
-  .addEventListener("change", async () => {
-    const file_input = this;
-
-    if (file_input.files.length === 0) return;
-
-    const file = file_input.files[0];
-
-    const filename = prompt("Введите имя файла для загрузки:", file.name);
-
-    if (!filename) {
-      file_input.value = "";
-      return;
-    }
-
-    await upload(file, filename);
-
-    file_input.value = "";
-  });
-
-// Вспомогательные функции для уведомлений
+/***********************************************************
+ * Show an error “toast” at bottom-right
+ ***********************************************************/
 function show_error(message) {
   const div = document.createElement("div");
   div.className = "error";
@@ -236,10 +442,62 @@ function show_error(message) {
   setTimeout(() => div.remove(), 3000);
 }
 
+/***********************************************************
+ * Show a success “toast” at bottom-right
+ ***********************************************************/
 function show_success(message) {
   const div = document.createElement("div");
   div.className = "success";
   div.textContent = message;
   document.body.appendChild(div);
   setTimeout(() => div.remove(), 3000);
+}
+
+/***********************************************************
+ * Sort the currentListing array by a given columnKey
+ ***********************************************************/
+function sortBy(columnKey) {
+  // Toggle asc/desc if the same column is clicked again
+  if (sortState.column === columnKey) {
+    sortState.ascending = !sortState.ascending;
+  } else {
+    sortState.column = columnKey;
+    sortState.ascending = true;
+  }
+
+  currentListing.sort((a, b) => {
+    let valA = a[columnKey] || "";
+    let valB = b[columnKey] || "";
+
+    // For numeric sort on “size”
+    if (columnKey === "size") {
+      valA = parseInt(valA, 10) || 0;
+      valB = parseInt(valB, 10) || 0;
+    }
+
+    // Basic ascending string or numeric comparison
+    if (valA < valB) return sortState.ascending ? -1 : 1;
+    if (valA > valB) return sortState.ascending ? 1 : -1;
+    return 0;
+  });
+
+  renderListing();
+}
+
+/***********************************************************
+ * Show sorting arrows in the header
+ ***********************************************************/
+function updateSortIndicator() {
+  // Remove old ascending/descending classes
+  document.querySelectorAll("thead th[data-column]").forEach((th) => {
+    th.classList.remove("ascending", "descending");
+  });
+
+  if (sortState.column) {
+    const selector = `thead th[data-column="${sortState.column}"]`;
+    const th = document.querySelector(selector);
+    if (th) {
+      th.classList.add(sortState.ascending ? "ascending" : "descending");
+    }
+  }
 }

@@ -176,6 +176,8 @@ sub make_directory(
 
   $self->{ftp}->make_directory($directory, $recurse)
     or die "Не удалось создать директорию '$directory': " . $self->{inner}->message;
+
+  $self->send({ success => 1 });
 }
 
 sub remove_directory(
@@ -187,6 +189,8 @@ sub remove_directory(
 
   $self->{ftp}->remove_directory($directory, $recurse)
     or die "Не удалось удалить директорию '$directory': " . $self->{inner}->message;
+
+  $self->send({ success => 1 });
 }
 
 1;

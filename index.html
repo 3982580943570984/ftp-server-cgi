@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -9,20 +8,23 @@
   </head>
 
   <body>
-    <h1>Текущая директория: <span id="directory"></span></h3>
+    <h1>Текущая директория: <span id="directory"></span></h1>
 
-    <div class="header">
-      <div class="column name-col">Имя</div>
-      <div class="column type-col">Тип</div>
-      <div class="column perm-col">Права</div>
-      <div class="column owner-col">Владелец</div>
-      <div class="column group-col">Группа</div>
-      <div class="column size-col">Размер</div>
-      <div class="column date-col">Дата</div>
-      <div class="column actions-col">Действия</div>
-    </div>
-
-    <div class="listing" id="listing"></div>
+    <table class="listing-table">
+      <thead>
+        <tr>
+          <th class="name-col" data-column="name">Имя</th>
+          <th class="type-col" data-column="type">Тип</th>
+          <th class="perm-col" data-column="permissions">Права</th>
+          <th class="owner-col" data-column="owner">Владелец</th>
+          <th class="group-col" data-column="group">Группа</th>
+          <th class="size-col" data-column="size">Размер</th>
+          <th class="date-col" data-column="date">Дата</th>
+          <th class="actions-col">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="listing"></tbody>
+    </table>
 
     <input type="file" id="hidden-upload-input" style="display: none" />
   </body>
