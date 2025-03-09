@@ -1,0 +1,82 @@
+.header,
+.listing {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  row-gap: 2px;
+  margin-top: 10px;
+}
+
+.row {
+  display: contents;
+}
+
+.column {
+  padding: 8px;
+  border-bottom: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  display: flex;
+  align-items: center;
+}
+
+.column.actions-col {
+  border-right: none;
+}
+
+.file-header {
+  background-color: #f7f7f7;
+  font-weight: bold;
+}
+
+.dir .name-col {
+  color: #007bff;
+  cursor: pointer;
+}
+
+.file-row.file .name-col {
+  color: #333;
+}
+
+.upload-item {
+  background-color: #e4f7e4;
+  cursor: pointer;
+}
+
+.upload-item:hover {
+  background-color: #d4f0d4;
+}
+
+.file-row:not(.file-header):hover .column {
+  background-color: #f0f0f0;
+}
+
+.download-button,
+.view-button {
+  margin-right: 5px;
+  background: none;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  padding: 3px 6px;
+}
+
+.download-button:hover,
+.view-button:hover {
+  background-color: #efefef;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.error {
+  color: red;
+  margin: 10px;
+}
+
+.success {
+  color: green;
+  margin: 10px;
+}

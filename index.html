@@ -1,214 +1,29 @@
 <!DOCTYPE html>
+
 <html>
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>FTP Клиент</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
-        .form-container { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; }
-        .file-list { list-style: none; padding: 0; }
-        .file-item { margin: 5px 0; }
-        .dir::before { content: "📁 "; }
-        .file::before { content: "📄 "; }
-        .nav-buttons { margin-bottom: 10px; }
-        button { cursor: pointer; }
-        .error { color: red; }
-        .success { color: green; }
-    </style>
-</head>
-<body>
-    <h1>FTP Клиент</h1>
-    
-    <div class="form-container">
-        <h3>Подключение к FTP</h3>
-        <form id="connect-form">
-            <div>
-                <label>Хост: <input type="text" name="host" value="localhost" required></label>
-            </div>
-            <div>
-                <label>Пользователь: <input type="text" name="user" value="username" required></label>
-            </div>
-            <div>
-                <label>Пароль: <input type="password" name="pass" value="password" required></label>
-            </div>
-            <div>
-                <label>Порт: <input type="number" name="port" value="21"></label>
-            </div>
-            <button type="submit">Подключиться</button>
-        </form>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="main.js" defer></script>
+  </head>
+
+  <body>
+    <h1>Текущая директория: <span id="directory"></span></h3>
+
+    <div class="header">
+      <div class="column name-col">Имя</div>
+      <div class="column type-col">Тип</div>
+      <div class="column perm-col">Права</div>
+      <div class="column owner-col">Владелец</div>
+      <div class="column group-col">Группа</div>
+      <div class="column size-col">Размер</div>
+      <div class="column date-col">Дата</div>
+      <div class="column actions-col">Действия</div>
     </div>
 
-    <div id="content" style="display: none;">
-        <h3>Текущая директория: <span id="current-dir"></span></h3>
-        <div class="nav-buttons">
-            <button onclick="navigate('..')">Наверх</button>
-        </div>
-        <ul class="file-list" id="file-list"></ul>
-        
-        <div class="upload-section">
-            <h4>Загрузить файл</h4>
-            <input type="file" id="file-input">
-            <input type="text" id="upload-filename" placeholder="Имя файла на сервере">
-            <button onclick="uploadFile()">Загрузить</button>
-        </div>
-    </div>
+    <div class="listing" id="listing"></div>
 
-    <script>
-        let currentState = {
-            host: '',
-            user: '',
-            pass: '',
-            port: 21,
-            current_dir: '/'
-        };
-
-        // Обработка подключения
-        document.getElementById('connect-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            currentState = Object.fromEntries(formData.entries());
-            currentState.port = currentState.port || 21;
-            
-            try {
-                const response = await fetch('/htbin/main.perl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({...currentState, command: 'list'})
-                });
-
-                if (!response.ok) throw await response.json();
-                
-                document.getElementById('content').style.display = 'block';
-                loadDirectory(currentState.current_dir);
-            } catch (error) {
-                showError(error.error);
-            }
-        });
-
-        // Загрузка содержимого директории
-        async function loadDirectory(dir) {
-            try {
-                const response = await fetch('/htbin/main.perl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({...currentState, command: 'list', current_dir: dir})
-                });
-
-                if (!response.ok) throw await response.json();
-                
-                const data = await response.json();
-                currentState.current_dir = data.current_dir;
-                renderFileList(data.files);
-            } catch (error) {
-                showError(error.error);
-            }
-        }
-
-        // Навигация
-        function navigate(dir) {
-            let newDir = currentState.current_dir;
-            
-            if (dir === '..') {
-                const parts = newDir.replace(/\/+$/, '').split('/').slice(0, -1);
-                newDir = parts.length > 0 ? parts.join('/') + '/' : '/';
-            } else {
-                newDir = newDir.endsWith('/') ? newDir + dir : newDir + '/' + dir;
-            }
-            
-            loadDirectory(newDir);
-        }
-
-        // Рендеринг списка файлов
-        function renderFileList(files) {
-            const list = document.getElementById('file-list');
-            const dirElement = document.getElementById('current-dir');
-            dirElement.textContent = currentState.current_dir;
-
-            list.innerHTML = files.map(file => {
-                if (file.is_dir) {
-                    return `<li class="file-item dir">
-                        <a href="#" onclick="navigate('${file.name}')">${file.name}/</a>
-                    </li>`;
-                }
-                return `<li class="file-item file">
-                    <a href="#" onclick="downloadFile('${file.name}')">${file.name}</a>
-                </li>`;
-            }).join('');
-        }
-
-        // Скачивание файла
-        async function downloadFile(filename) {
-            try {
-                const response = await fetch('/htbin/main.perl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({...currentState, command: 'download', filename})
-                });
-
-                if (!response.ok) throw await response.json();
-                
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-            } catch (error) {
-                showError(error.error);
-            }
-        }
-
-        // Загрузка файла
-        async function uploadFile() {
-            const fileInput = document.getElementById('file-input');
-            const filename = document.getElementById('upload-filename').value;
-            
-            if (!fileInput.files[0] || !filename) {
-                showError('Выберите файл и укажите имя');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('filename', filename);
-            formData.append('command', 'upload');
-            formData.append('host', currentState.host);
-            formData.append('user', currentState.user);
-            formData.append('pass', currentState.pass);
-            formData.append('port', currentState.port);
-            formData.append('current_dir', currentState.current_dir);
-
-            try {
-                const response = await fetch('/htbin/main.perl', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw await response.json();
-                
-                loadDirectory(currentState.current_dir);
-                showSuccess('Файл успешно загружен');
-            } catch (error) {
-                showError(error.error);
-            }
-        }
-
-        // Вспомогательные функции
-        function showError(message) {
-            const div = document.createElement('div');
-            div.className = 'error';
-            div.textContent = `Ошибка: ${message}`;
-            document.body.appendChild(div);
-            setTimeout(() => div.remove(), 3000);
-        }
-
-        function showSuccess(message) {
-            const div = document.createElement('div');
-            div.className = 'success';
-            div.textContent = message;
-            document.body.appendChild(div);
-            setTimeout(() => div.remove(), 3000);
-        }
-    </script>
-</body>
+    <input type="file" id="hidden-upload-input" style="display: none" />
+  </body>
 </html>
