@@ -67,6 +67,8 @@ sub parse_parameters($self, $cgi = $self->{cgi}) {
     $self->{command},
     $self->{filename},
     $self->{directory},
+    $self->{recurse},
+    $self->{name}
   ) = (
     $parameters->{host},
     $parameters->{port},
@@ -75,6 +77,8 @@ sub parse_parameters($self, $cgi = $self->{cgi}) {
     $parameters->{command} || "list",
     $parameters->{filename},
     $parameters->{directory} || '/',
+    $parameters->{recurse} || 1,
+    $parameters->{name} || ""
   );
 
   Logger::log("Параметры для обработчика: '%s'", [$parameters]);
@@ -135,5 +139,54 @@ sub view(
 
   $self->send({ contents => $ftp->get($directory, $filename) });
 };
+
+sub rename(
+  $self,
+  $ftp = $self->{ftp},
+  $directory = $self->{directory},
+  $filename = $self->{filename},
+  $name = $self->{name}
+) {
+  Logger::log("Переименование из директории '%s' файла '%s'", [$directory, $filename]);
+
+  $ftp->rename($directory, $filename, $name);
+
+  $self->send({success => 1});
+}
+
+sub delete(
+  $self,
+  $ftp = $self->{ftp},
+  $directory = $self->{directory},
+  $filename = $self->{filename}
+) {
+  Logger::log("Удаление из директории '%s' файла '%s'", [$directory, $filename]);
+
+  $ftp->delete($directory, $filename);
+
+  $self->send({ success => 1 });
+}
+
+sub make_directory(
+  $self,
+  $directory = $self->{directory},
+  $recurse = $self->{recurse}
+) {
+  Logger::log("Создана директория '%s'", [$directory]);
+
+  $self->{ftp}->make_directory($directory, $recurse)
+    or die "Не удалось создать директорию '$directory': " . $self->{inner}->message;
+}
+
+sub remove_directory(
+  $self,
+  $directory = $self->{directory},
+  $recurse = $self->{recurse}
+) {
+  Logger::log("Удалена директория '%s'", [$directory]);
+
+  $self->{ftp}->remove_directory($directory, $recurse)
+    or die "Не удалось удалить директорию '$directory': " . $self->{inner}->message;
+}
 
 1;

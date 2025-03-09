@@ -106,6 +106,35 @@ sub put($self, $directory, $filename, $contents) {
     or die "Не удалось загрузить файл в активную директорию: " . $self->{inner}->message;
 }
 
+sub rename($self, $directory, $filename) {
+  $self->directory($directory);
+
+  $self->{inner}->rename($filename)
+    or die "Не удалось переименовать файл '$filename' из '$directory': " . $self->{inner}->message;
+}
+
+sub delete($self, $directory, $filename) {
+  $self->directory($directory);
+
+  $self->{inner}->delete($filename)
+    or die "Не удалось удалить файл '$filename' из '$directory': " . $self->{inner}->message;
+}
+
+sub make_directory($self, $directory, $recurse = 0) {
+  $self->{inner}->mkdir($directory, $recurse)
+    or die "Не удалось создать директорию '$directory': " . $self->{inner}->message;
+
+  Logger::log("Создана директория '%s'", [$directory]);
+}
+
+sub remove_directory($self, $directory, $recurse = 0) {
+  $self->{inner}->rmdir($directory, $recurse)
+    or die "Не удалось удалить директорию '$directory': " . $self->{inner}->message;
+
+  Logger::log("Удалена директория '%s'", [$directory]);
+}
+
+
 sub cwd($self, $directory) {
   $self->{inner}->cwd($directory)
     or die "Не удалось изменить активную директорию: " . $self->{inner}->message;

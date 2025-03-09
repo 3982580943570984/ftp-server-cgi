@@ -1,82 +1,116 @@
-.header,
-.listing {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
-  row-gap: 2px;
-  margin-top: 10px;
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  padding: 0;
+  background-color: #f5f5f5;
 }
 
-.row {
-  display: contents;
+h1 {
+  margin-bottom: 10px;
 }
 
-.column {
-  padding: 8px;
-  border-bottom: 1px solid #ccc;
-  border-right: 1px solid #ccc;
-  display: flex;
-  align-items: center;
+.listing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  background-color: #fff;
 }
 
-.column.actions-col {
-  border-right: none;
+.listing-table th,
+.listing-table td {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  text-align: left;
 }
 
-.file-header {
-  background-color: #f7f7f7;
-  font-weight: bold;
-}
-
-.dir .name-col {
-  color: #007bff;
+/* Hover effect for rows */
+.listing-table tbody tr:hover {
+  background-color: #f1f1f1;
   cursor: pointer;
 }
 
-.file-row.file .name-col {
-  color: #333;
+/* By default, the “actions” column might not trigger row click. */
+.listing-table tbody tr td.actions-col {
+  cursor: default;
 }
 
-.upload-item {
-  background-color: #e4f7e4;
+/* Make the header cells clickable for sorting */
+.listing-table th {
+  background-color: #eee;
   cursor: pointer;
+  user-select: none;
 }
 
-.upload-item:hover {
-  background-color: #d4f0d4;
+/* Show a small visual hint when hovering over headers */
+.listing-table th:hover {
+  background-color: #ddd;
 }
 
-.file-row:not(.file-header):hover .column {
-  background-color: #f0f0f0;
+/* You can optionally add an “ascending” or “descending” class
+   to display a little arrow or other icon. Example:
+
+.listing-table th.ascending::after {
+  content: " ▲";
+}
+.listing-table th.descending::after {
+  content: " ▼";
 }
 
+*/
+
+/* Buttons in the “actions” column */
 .download-button,
 .view-button {
-  margin-right: 5px;
-  background: none;
-  border: 1px solid #ccc;
+  margin-right: 6px;
+  border: none;
   cursor: pointer;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  padding: 3px 6px;
+  font-size: 1rem;
+  background: none;
 }
 
 .download-button:hover,
 .view-button:hover {
-  background-color: #efefef;
+  color: #0066cc;
 }
 
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
+/* Special row for “..” or “upload file” */
+.go-up-row td {
+  font-style: italic;
+  color: #555;
+}
+.upload-item {
+  font-style: italic;
+  color: #007700;
+}
+
+/* Additional row style for “Создать директорию” */
+.mkdir-item {
+  font-style: italic;
+  color: #0055aa;
+}
+.mkdir-item:hover {
+  background-color: #eef;
+}
+
+/* Toast-like styling for errors/success messages */
+.error,
+.success {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  min-width: 200px;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  pointer-events: none; /* so it doesn’t interfere with clicks */
 }
 
 .error {
-  color: red;
-  margin: 10px;
+  border-left: 5px solid red;
 }
 
 .success {
-  color: green;
-  margin: 10px;
+  border-left: 5px solid green;
 }
