@@ -1,44 +1,48 @@
-/***********************************************************
- * Global State
- ***********************************************************/
-
-// Holds basic connection and directory info
 let state = {
-  host: "127.0.0.1",
+  host: "",
   port: 21,
-  username: "username",
-  password: "password",
+  username: "",
+  password: "",
   directory: "/",
   filename: "",
 };
 
-// Holds the array of file entries retrieved from the server.
 let currentListing = [];
 
-// Tracks the current sorting column and direction
 let sortState = {
-  column: null, // e.g. "name", "type", "size", ...
-  ascending: true, // true = ascending, false = descending
+  column: null,
+  ascending: true,
 };
 
-/***********************************************************
- * On page load, load the default listing.
- ***********************************************************/
 window.onload = function () {
-  // Add a click listener to each <th> so we can sort by that column
+  document.getElementById("loginForm").addEventListener("submit", handleLogin);
+
   document.querySelectorAll("thead th[data-column]").forEach((th) => {
     th.addEventListener("click", () => {
       const columnKey = th.getAttribute("data-column");
       sortBy(columnKey);
     });
   });
-
-  list(state.directory);
 };
 
-/***********************************************************
- * Fetch and store the file listing from the server
- ***********************************************************/
+async function handleLogin(event) {
+  event.preventDefault();
+
+  state.host = document.getElementById("host").value.trim();
+  state.port = parseInt(document.getElementById("port").value);
+  state.username = document.getElementById("username").value.trim();
+  state.password = document.getElementById("password").value.trim();
+
+  try {
+    await list("/");
+
+    document.getElementById("login-form-container").style.display = "none";
+    document.getElementById("main-content").style.display = "block";
+  } catch (error) {
+    show_error(error.error || "Ошибка подключения");
+  }
+}
+
 async function list(directory) {
   try {
     const response = await fetch("/htbin/main.perl", {
@@ -52,12 +56,11 @@ async function list(directory) {
     });
 
     const data = await response.json();
-    if (!response.ok) throw data; // if server returned error
+    if (!response.ok) throw data;
 
     state.directory = data.directory;
     document.getElementById("directory").textContent = state.directory;
 
-    // Convert { filename: info } object into an array of items
     currentListing = Object.entries(data.files).map(([name, info]) => {
       return {
         name: name,
@@ -71,39 +74,34 @@ async function list(directory) {
       };
     });
 
-    // After updating currentListing, render it
     renderListing();
   } catch (error) {
     show_error(error.error || String(error));
   }
 }
 
-/***********************************************************
- * Render the currentListing array into <tbody>
- ***********************************************************/
 function renderListing() {
   const listingBody = document.getElementById("listing");
   listingBody.innerHTML = "";
 
-  // 1) Insert the special “..” row at the top
-  listingBody.insertAdjacentHTML(
-    "beforeend",
-    create_file_row(
-      "..",
-      {
-        type: "directory",
-        permissions: "",
-        owner: "",
-        group: "",
-        size: "",
-        date: "",
-      },
-      true,
-      ".."
-    )
-  );
+  if (state.directory !== "/")
+    listingBody.insertAdjacentHTML(
+      "beforeend",
+      create_file_row(
+        "..",
+        {
+          type: "directory",
+          permissions: "",
+          owner: "",
+          group: "",
+          size: "",
+          date: "",
+        },
+        true,
+        ".."
+      )
+    );
 
-  // 2) For each file in currentListing, create a row
   currentListing.forEach((file) => {
     listingBody.insertAdjacentHTML(
       "beforeend",
@@ -111,19 +109,13 @@ function renderListing() {
     );
   });
 
-  // 3) Insert the special “upload file” row
   listingBody.insertAdjacentHTML("beforeend", create_upload_row());
 
-  // 4) Insert a row for “Создать директорию”
   listingBody.insertAdjacentHTML("beforeend", create_mkdir_row());
 
-  // Show a small arrow indicator on the sorted column
   updateSortIndicator();
 }
 
-/***********************************************************
- * Build one <tr> for a file/directory
- ***********************************************************/
 function create_file_row(name, info, isGoUp = false, dirName = "") {
   const isDir = info.type === "directory";
   const isFile = info.type === "file";
@@ -131,23 +123,17 @@ function create_file_row(name, info, isGoUp = false, dirName = "") {
   const target =
     isSymlink && info.symlink_target ? ` -> ${info.symlink_target}` : "";
 
-  // Display name
   const displayName = isGoUp ? ".." : `${name}${isDir ? "/" : ""}${target}`;
 
-  // If directory => row click navigates
   const rowOnclick =
     isGoUp || isDir ? `onclick="navigate('${dirName || name}')"` : "";
 
-  // Simple icons
-  const icon = isGoUp ? "" : isDir ? "📁" : "📄";
+  const icon = isGoUp ? "" : isDir ? "📁" : isSymlink ? "🔗" : "📄";
   const finalNameCell = icon + " " + displayName;
 
-  // Base actions (empty by default)
   let actionsHTML = "";
 
-  // For real items (not “..”), show rename & delete
   if (!isGoUp) {
-    // Add Rename + Delete for files and directories
     actionsHTML += `
       <button class="rename-button"
               onclick="renameItem('${name}', ${isDir}); event.stopPropagation();"
@@ -155,11 +141,10 @@ function create_file_row(name, info, isGoUp = false, dirName = "") {
 
       <button class="delete-button"
               onclick="deleteItem('${name}', ${isDir}); event.stopPropagation();"
-              title="Удалить">🗑</button>
+              title="Удалить">🗑️</button>
     `;
   }
 
-  // If it’s a file, also show “download” & “view”
   if (isFile) {
     actionsHTML += `
       <button class="download-button"
@@ -168,11 +153,10 @@ function create_file_row(name, info, isGoUp = false, dirName = "") {
 
       <button class="view-button"
               onclick="view('${name}'); event.stopPropagation();"
-              title="Просмотр">👁</button>
+              title="Просмотр">👁‍🗨</button>
     `;
   }
 
-  // Build the table row
   return `
     <tr class="${isGoUp ? "go-up-row" : ""}" ${rowOnclick}>
       <td class="name-col">${finalNameCell}</td>
@@ -187,9 +171,6 @@ function create_file_row(name, info, isGoUp = false, dirName = "") {
   `;
 }
 
-/***********************************************************
- * Create the special “upload file” row
- ***********************************************************/
 function create_upload_row() {
   return `
     <tr class="upload-item" onclick="trigger_upload()">
@@ -198,9 +179,6 @@ function create_upload_row() {
   `;
 }
 
-/***********************************************************
- * Create a row for “make directory”
- ***********************************************************/
 function create_mkdir_row() {
   return `
     <tr class="mkdir-item" onclick="makeDir()">
@@ -209,9 +187,6 @@ function create_mkdir_row() {
   `;
 }
 
-/***********************************************************
- * Ask user for a subdirectory or “..”
- ***********************************************************/
 function navigate(directory) {
   let newDirectory = state.directory;
 
@@ -227,9 +202,6 @@ function navigate(directory) {
   list(newDirectory);
 }
 
-/***********************************************************
- * Download a file from the server
- ***********************************************************/
 async function download(filename) {
   try {
     const response = await fetch("/htbin/main.perl", {
@@ -255,9 +227,6 @@ async function download(filename) {
   }
 }
 
-/***********************************************************
- * View file contents (text)
- ***********************************************************/
 async function view(filename) {
   try {
     const response = await fetch("/htbin/main.perl", {
@@ -288,16 +257,10 @@ async function view(filename) {
   }
 }
 
-/***********************************************************
- * Trigger file selection for upload
- ***********************************************************/
 function trigger_upload() {
   document.getElementById("hidden-upload-input").click();
 }
 
-/***********************************************************
- * Listen for <input type="file"> changes, then upload
- ***********************************************************/
 document
   .getElementById("hidden-upload-input")
   .addEventListener("change", async function () {
@@ -314,9 +277,6 @@ document
     this.value = "";
   });
 
-/***********************************************************
- * Upload a file
- ***********************************************************/
 async function upload(file, filename) {
   const formData = new FormData();
   formData.append("file", file);
@@ -343,9 +303,6 @@ async function upload(file, filename) {
   }
 }
 
-/***********************************************************
- * Create a new directory
- ***********************************************************/
 async function makeDir() {
   const dirName = prompt("Введите имя новой директории:");
   if (!dirName) return;
@@ -357,7 +314,7 @@ async function makeDir() {
       body: JSON.stringify({
         ...state,
         command: "make_directory",
-        directory: dirName, // the server should handle "newDirName"
+        directory: dirName,
       }),
     });
 
@@ -370,9 +327,6 @@ async function makeDir() {
   }
 }
 
-/***********************************************************
- * Rename a file or directory
- ***********************************************************/
 async function renameItem(oldName, isDir) {
   const newName = prompt(`Введите новое имя для '${oldName}':`, oldName);
   if (!newName || newName.trim() === "" || newName === oldName) return;
@@ -397,14 +351,10 @@ async function renameItem(oldName, isDir) {
   }
 }
 
-/***********************************************************
- * Delete a file or directory
- ***********************************************************/
 async function deleteItem(name, isDir) {
   const confirmed = confirm(`Удалить '${name}'?`);
   if (!confirmed) return;
 
-  // If it's a directory, we call remove_directory; else we call delete
   const cmd = isDir ? "remove_directory" : "delete";
 
   try {
@@ -431,9 +381,6 @@ async function deleteItem(name, isDir) {
   }
 }
 
-/***********************************************************
- * Show an error “toast” at bottom-right
- ***********************************************************/
 function show_error(message) {
   const div = document.createElement("div");
   div.className = "error";
@@ -442,9 +389,6 @@ function show_error(message) {
   setTimeout(() => div.remove(), 3000);
 }
 
-/***********************************************************
- * Show a success “toast” at bottom-right
- ***********************************************************/
 function show_success(message) {
   const div = document.createElement("div");
   div.className = "success";
@@ -453,11 +397,7 @@ function show_success(message) {
   setTimeout(() => div.remove(), 3000);
 }
 
-/***********************************************************
- * Sort the currentListing array by a given columnKey
- ***********************************************************/
 function sortBy(columnKey) {
-  // Toggle asc/desc if the same column is clicked again
   if (sortState.column === columnKey) {
     sortState.ascending = !sortState.ascending;
   } else {
@@ -469,13 +409,11 @@ function sortBy(columnKey) {
     let valA = a[columnKey] || "";
     let valB = b[columnKey] || "";
 
-    // For numeric sort on “size”
     if (columnKey === "size") {
       valA = parseInt(valA, 10) || 0;
       valB = parseInt(valB, 10) || 0;
     }
 
-    // Basic ascending string or numeric comparison
     if (valA < valB) return sortState.ascending ? -1 : 1;
     if (valA > valB) return sortState.ascending ? 1 : -1;
     return 0;
@@ -484,11 +422,7 @@ function sortBy(columnKey) {
   renderListing();
 }
 
-/***********************************************************
- * Show sorting arrows in the header
- ***********************************************************/
 function updateSortIndicator() {
-  // Remove old ascending/descending classes
   document.querySelectorAll("thead th[data-column]").forEach((th) => {
     th.classList.remove("ascending", "descending");
   });

@@ -23,42 +23,92 @@ h1 {
   text-align: left;
 }
 
-/* Hover effect for rows */
+#login-form-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+#login-form {
+  width: 90%;
+  max-width: 400px;
+  padding: 20px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+#login-form h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: #555;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+#loginForm button {
+  width: 100%;
+  padding: 12px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+#loginForm button:hover {
+  background-color: #45a049;
+}
+
 .listing-table tbody tr:hover {
   background-color: #f1f1f1;
   cursor: pointer;
 }
 
-/* By default, the “actions” column might not trigger row click. */
 .listing-table tbody tr td.actions-col {
   cursor: default;
 }
 
-/* Make the header cells clickable for sorting */
 .listing-table th {
   background-color: #eee;
   cursor: pointer;
   user-select: none;
 }
 
-/* Show a small visual hint when hovering over headers */
 .listing-table th:hover {
   background-color: #ddd;
 }
 
-/* You can optionally add an “ascending” or “descending” class
-   to display a little arrow or other icon. Example:
-
-.listing-table th.ascending::after {
+/* .listing-table th.ascending::after {
   content: " ▲";
 }
 .listing-table th.descending::after {
   content: " ▼";
-}
+} */
 
-*/
-
-/* Buttons in the “actions” column */
+.rename-button,
+.delete-button,
 .download-button,
 .view-button {
   margin-right: 6px;
@@ -68,12 +118,13 @@ h1 {
   background: none;
 }
 
+.rename-button:hover,
+.delete-button:hover,
 .download-button:hover,
 .view-button:hover {
   color: #0066cc;
 }
 
-/* Special row for “..” or “upload file” */
 .go-up-row td {
   font-style: italic;
   color: #555;
@@ -83,7 +134,6 @@ h1 {
   color: #007700;
 }
 
-/* Additional row style for “Создать директорию” */
 .mkdir-item {
   font-style: italic;
   color: #0055aa;
@@ -92,7 +142,6 @@ h1 {
   background-color: #eef;
 }
 
-/* Toast-like styling for errors/success messages */
 .error,
 .success {
   position: fixed;
@@ -104,7 +153,7 @@ h1 {
   background-color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   z-index: 9999;
-  pointer-events: none; /* so it doesn’t interfere with clicks */
+  pointer-events: none;
 }
 
 .error {
